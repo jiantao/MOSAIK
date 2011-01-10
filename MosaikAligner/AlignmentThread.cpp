@@ -844,74 +844,79 @@ void CAlignmentThread::GetReadCandidates(vector<HashRegion>& regions, char* quer
 }
 
 // attempts to rescue the mate paired with a unique mate
-bool CAlignmentThread::RescueMate(const LocalAlignmentModel& lam, const CMosaikString& bases, const unsigned int uniqueBegin, const unsigned int uniqueEnd, const unsigned int refIndex, Alignment& al) {
+bool CAlignmentThread::RescueMate(const LocalAlignmentModel& lam, const CMosaikString& bases, const unsigned int uniqueBegin, const unsigned int uniqueEnd, const unsigned int refIndex, Alignment& al) 
+{
+    // calculate the target regions using the local alignment models
+    const unsigned int refBegin = mReferenceBegin[refIndex];
+    const unsigned int refEnd   = mReferenceEnd[refIndex];
+    
+    // the begin and end of local search
+    unsigned int begin = 0;
+    unsigned int end   = 0;
+    
+    // the length of search region
+    const unsigned int searchLength = mSettings.MedianFragmentLength * mSettings.NumFragmentLength;
 
-	// calculate the target regions using the local alignment models
-	const unsigned int refBegin = mReferenceBegin[refIndex];
-	const unsigned int refEnd   = mReferenceEnd[refIndex];
-	unsigned int begin = uniqueBegin;
-	unsigned int end   = uniqueEnd;
+    // calcualte the begin and the end
+    // search region is several number of median fragment length before or after anchor mate
+    if (lam.IsTargetBeforeUniqueMate)
+    {
+        begin = uniqueBegin;
+        end   = uniqueBegin;
 
-	if(lam.IsTargetBeforeUniqueMate) {
+        if (begin > searchLength)
+            begin -= searchLength;
+        else
+            begin = 0;
+    }
+    else
+    {
+        begin = uniqueEnd;
+        end   = uniqueEnd + searchLength;
+    }
 
-		if(begin >= mSettings.MedianFragmentLength)       begin -= mSettings.MedianFragmentLength;
-		else begin = 0;
+    // make sure the endpoints are within the reference sequence
+    if(begin < refBegin) begin = refBegin;
+    if(end   < refBegin) end   = refBegin;
+    if(begin > refEnd)   begin = refEnd;
+    if(end   > refEnd)   end   = refEnd;
 
-		if(begin >= mSettings.LocalAlignmentSearchRadius) begin -= mSettings.LocalAlignmentSearchRadius;
-		else begin = 0;
+    // adjust the start position if the reference starts with a J nucleotide
+    while(mReference[begin] == 'X') 
+        begin++;
 
-		if(end   >= mSettings.MedianFragmentLength)       end   -= mSettings.MedianFragmentLength;
-		else end = 0;
+    // adjust the stop position if the reference ends with a J nucleotide
+    while(mReference[end] == 'X')   
+        end--;
 
-		end += mSettings.LocalAlignmentSearchRadius;
+    // quit if we don't have a region to align against
+    // or the begin and end position of search region are flipped
+    if(begin >= end) 
+        return false;
 
-	} else {
+    // prepare for alignment (borrow the forward read buffer)
+    const char* query              = bases.CData();
+    const unsigned int queryLength = bases.Length();
 
-		begin += mSettings.MedianFragmentLength;
+    strncpy_s(mForwardRead, mSettings.AllocatedReadLength, query, queryLength);
+    mForwardRead[queryLength] = 0;
 
-		if(begin >= mSettings.LocalAlignmentSearchRadius) begin -= mSettings.LocalAlignmentSearchRadius;
-		else begin = 0;
+    if(lam.IsTargetReverseStrand)
+    {
+        if(mFlags.EnableColorspace) CSequenceUtilities::ReverseSequence(mForwardRead, queryLength);
+        else CSequenceUtilities::GetReverseComplement(mForwardRead, queryLength);
+    }
 
-		end  += mSettings.MedianFragmentLength + mSettings.LocalAlignmentSearchRadius;
-	}
+    // align according to the model
+    al.IsReverseStrand = (lam.IsTargetReverseStrand ? true : false);
+    char* pAnchor = mReference + begin;
+    mSW.Align(al, pAnchor, (end - begin + 1), mForwardRead, queryLength);
 
-	// make sure the endpoints are within the reference sequence
-	if(begin < refBegin) begin = refBegin;
-	if(end   < refBegin) end   = refBegin;
-	if(begin > refEnd)   begin = refEnd;
-	if(end   > refEnd)   end   = refEnd;
+    // adjust the reference start positions
+    al.ReferenceIndex = refIndex;
+    al.ReferenceBegin += begin - refBegin;
+    al.ReferenceEnd   += begin - refBegin;
 
-	// adjust the start position if the reference starts with a J nucleotide
-	while(mReference[begin] == 'X') begin++;
-
-	// adjust the stop position if the reference ends with a J nucleotide
-	while(mReference[end] == 'X')   end--;
-
-	// quit if we don't have a region to align against
-	if(begin == end) return false;
-
-	// prepare for alignment (borrow the forward read buffer)
-	const char* query              = bases.CData();
-	const unsigned int queryLength = bases.Length();
-
-	strncpy_s(mForwardRead, mSettings.AllocatedReadLength, query, queryLength);
-	mForwardRead[queryLength] = 0;
-
-	if(lam.IsTargetReverseStrand) {
-		if(mFlags.EnableColorspace) CSequenceUtilities::ReverseSequence(mForwardRead, queryLength);
-		else CSequenceUtilities::GetReverseComplement(mForwardRead, queryLength);
-	}
-
-	// align according to the model
-	al.IsReverseStrand = (lam.IsTargetReverseStrand ? true : false);
-	char* pAnchor = mReference + begin;
-	mSW.Align(al, pAnchor, (end - begin + 1), mForwardRead, queryLength);
-
-	// adjust the reference start positions
-	al.ReferenceIndex = refIndex;
-	al.ReferenceBegin += begin - refBegin;
-	al.ReferenceEnd   += begin - refBegin;
-
-	// an alignment was performed
-	return true;
+    // an alignment was performed
+    return true;
 }

@@ -62,9 +62,10 @@ public:
 		string UnalignedReadReportFilename;
 		unsigned int AllocatedReadLength;
 		unsigned int Bandwidth;
-		unsigned int LocalAlignmentSearchRadius;
+                // unsigned int LocalAlignmentSearchRadius; // do not need anymore because of the change of search region calculation
 		unsigned int MedianFragmentLength;
 		unsigned int NumCachedHashes;
+                unsigned int NumFragmentLength; // SplitAlignment: add search region for split alignment
 		unsigned short AlignmentCandidateThreshold;
 		unsigned short HashPositionThreshold;
 		unsigned char HashSize;
@@ -109,6 +110,7 @@ public:
 		bool UseLocalAlignmentSearch;
 		bool UsePairedEndOutput;
 		bool UseLowMemory;
+                bool UseSplitAlginment; // SplitAlignment: add a flag for split alignment
 
 		FlagData()
 			: EnableColorspace(false)
@@ -124,6 +126,7 @@ public:
 			, UseLocalAlignmentSearch(false)
 			, UsePairedEndOutput(false)
 			, UseLowMemory(false)
+                        , UseSplitAlginment(false)
 		{}
 	};
 	// stores the statistical counters
@@ -140,6 +143,7 @@ public:
 		uint64_t OneNonUniqueReads;
 		uint64_t OrphanedReads;
 		uint64_t ShortMates;
+                uint64_t SplitAlignments; // SplitAlignment: add a split alignment counter
 		uint64_t UnalignedReads;
 		uint64_t UniqueMates;
 
@@ -156,6 +160,7 @@ public:
 			, OneNonUniqueReads(0)
 			, OrphanedReads(0)
 			, ShortMates(0)
+                        , SplitAlignments(0)
 			, UnalignedReads(0)
 			, UniqueMates(0)
 		{}
