@@ -95,6 +95,7 @@ public:
 			, MaxNumMismatches(CPairwiseUtilities::MaxNumMismatches)
 		{}
 	};
+
 	// define our boolean flags structure
 	struct FlagData {
 		bool EnableColorspace;
@@ -129,6 +130,33 @@ public:
                         , UseSplitAlginment(false)
 		{}
 	};
+
+	// stores the partial alginment filter settings
+        struct PartialAlignmentFilterSettings
+        {
+		bool UseMinAlignmentFilter;
+		bool UseMinAlignmentPercentFilter;
+		bool UseMismatchFilter;
+		bool UseMismatchPercentFilter;
+
+		double MinPercentAlignment;
+		double MaxMismatchPercent;
+		unsigned int MinAlignment;
+		unsigned int MaxNumMismatches;
+
+                // TODO: initialize the variables with default values
+                PartialAlignmentFilterSettings()
+			: UseMinAlignmentFilter()
+			, UseMinAlignmentPercentFilter()
+			, UseMismatchFilter()
+			, UseMismatchPercentFilter()
+			, MinPercentAlignment()
+			, MaxMismatchPercent()
+			, MinAlignment()
+			, MaxNumMismatches()
+		{}
+        };
+
 	// stores the statistical counters
 	struct StatisticsCounters {
 		uint64_t AdditionalLocalMates;
@@ -166,7 +194,7 @@ public:
 		{}
 	};
 	// constructor
-	CAlignmentThread(AlignerAlgorithmType& algorithmType, FilterSettings& filters, FlagData& flags, 
+	CAlignmentThread(AlignerAlgorithmType& algorithmType, FilterSettings& filters, PartialAlignmentFilterSettings& partialAlignmentFilters, FlagData& flags, 
 		AlignerModeType& algorithmMode, char* pReference, unsigned int referenceLen, CAbstractDnaHash* pDnaHash, 
 		AlignerSettings& settings, unsigned int* pRefBegin, unsigned int* pRefEnd, char** pBsRefSeqs);
 	// destructor
@@ -177,6 +205,7 @@ public:
 		AlignerModeType Mode;
 		AlignerSettings Settings;
 		FilterSettings Filters;
+                PartialAlignmentFilterSettings PartialAlignmentFilters;
 		FlagData Flags;
 		StatisticsCounters* pCounters;
 		CAbstractDnaHash* pDnaHash;
@@ -222,30 +251,49 @@ private:
 	};
 	// aligns the read against the reference sequence and returns true if the read was aligned
 	bool AlignRead(CNaiveAlignmentSet& alignments, const char* query, const char* qualities, const unsigned int queryLength, AlignmentStatusType& status);
+        
 	// aligns the read against a specified hash region using Smith-Waterman-Gotoh
 	void AlignRegion(const HashRegion& r, Alignment& alignment, char* query, unsigned int queryLength, unsigned int extensionBases);
+        
 	// returns true if the alignment passes all of the user-specified filters
 	bool ApplyReadFilters(Alignment& al, const char* qualities, const unsigned int queryLength);
+
+        // SplitAlignment: filter for partial alignments
+	bool ApplyPartialAlignmentFilters(Alignment& al, const char* qualities, const unsigned int queryLength);
+        
 	// creates the hash for a supplied fragment
 	void CreateHash(const char* fragment, const unsigned char fragmentLen, uint64_t& key);
+
 	// consolidates hash hits into a read candidate (fast algorithm)
 	void GetFastReadCandidate(HashRegion& region, char* query, const unsigned int queryLength, MhpOccupancyList* pMhpOccupancyList);
+
 	// consolidates hash hits into read candidates
 	void GetReadCandidates(vector<HashRegion>& regions, char* query, const unsigned int queryLength, MhpOccupancyList* pMhpOccupancyList);
+
 	// attempts to rescue the mate paired with a unique mate
 	bool RescueMate(const LocalAlignmentModel& lam, const CMosaikString& bases, const unsigned int uniqueBegin, const unsigned int uniqueEnd, const unsigned int refIndex, Alignment& al);
+
 	// denotes the active alignment algorithm
 	AlignerAlgorithmType mAlgorithm;
+
 	// denotes the active alignment mode
 	AlignerModeType mMode;
+
 	// stores the alignment configuration
 	AlignerSettings mSettings;
+
 	// stores the filter configuration
 	FilterSettings mFilters;
+
+        // stores the partial alignment filter
+        PartialAlignmentFilterSettings mPartialAlignmentFilters;
+
 	// stores our boolean flags
 	FlagData mFlags;
+
 	// the reference sequence
 	char* mReference;
+
 	// our forward and reverse complement copy of the read
 	char* mForwardRead;
 	char* mReverseRead;
