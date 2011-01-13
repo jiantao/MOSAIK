@@ -36,6 +36,7 @@ const AlignmentStatusType ALIGNMENTSTATUS_GOOD        = 10;
 const AlignmentStatusType ALIGNMENTSTATUS_TOOSHORT    = 20;
 const AlignmentStatusType ALIGNMENTSTATUS_FAILEDHASH  = 30;
 const AlignmentStatusType ALIGNMENTSTATUS_FILTEREDOUT = 40;
+const AlignmentStatusType ALIGNMENTSTATUS_SPLITTED    = 50; // SplitAlignment: split alignment status
 
 class CAlignmentThread {
 public:

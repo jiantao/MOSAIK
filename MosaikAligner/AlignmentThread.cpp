@@ -213,6 +213,7 @@ void CAlignmentThread::AlignReadArchive(MosaikReadFormat::CReadReader* pIn, Mosa
                 // local alignment search
                 // ======================
 
+                // SplitAlignment: count successful split alignment as unique alignment
                 const bool isMate1Unique = mate1Alignments.IsUnique();
                 const bool isMate2Unique = mate2Alignments.IsUnique();
 
@@ -242,22 +243,60 @@ void CAlignmentThread::AlignReadArchive(MosaikReadFormat::CReadReader* pIn, Mosa
                                 }
 
                                 Alignment al;
-                                if(RescueMate(lam, mr.Mate2.Bases, uniqueBegin, uniqueEnd, refIndex, al)) {
+                                const char* pQualities = mr.Mate2.Qualities.CData();
 
-                                        const char* pQualities = mr.Mate2.Qualities.CData();
-
+                                if (RescueMate(lam, mr.Mate2.Bases, uniqueBegin, uniqueEnd, refIndex, al)) {
                                         // add the alignment to the alignment set if it passes the filters
-                                        if(ApplyReadFilters(al, pQualities, mr.Mate2.Bases.Length())) {
+                                        if (ApplyReadFilters(al, pQualities, mr.Mate2.Bases.Length())) {
                                                 al.WasRescued = true;
                                                 if(mate2Alignments.Add(al)) {
                                                         mStatisticsCounters.AdditionalLocalMates++;
                                                         mate2Status    = ALIGNMENTSTATUS_GOOD;
                                                         isMate2Aligned = true;
                                                 }
-                                        }
 
-                                        // increment our candidates counter
-                                        mStatisticsCounters.AlignmentCandidates++;
+                                                // increment our candidates counter
+                                                mStatisticsCounters.AlignmentCandidates++;
+                                        }
+                                        else if (mFlags.UseSplitAlginment) { // if use split alignment, grab those reads did not pass normal filter as split alignment candidantes
+                                                // flags for partial alignment searching
+                                                bool foundFirst = false;
+                                                bool foundSecond = false;
+
+                                                // two tempory variables to hold the partial alignments
+                                                Alignment firstPartialAlignment = al;
+                                                Alignment secondePartialAlignement;
+
+                                                // apply the partial alignment filter
+                                                if (ApplyPartialAlignmentFilters(firstPartialAlignment, pQualities, mr.Mate2.Bases.Length())) 
+                                                        foundFirst = true;
+                                                else {
+                                                        // search the other side of unique anchor if we fail in the first time
+                                                        if (lam.IsTargetBeforeUniqueMate)
+                                                                lam.IsTargetBeforeUniqueMate = false; 
+                                                        else
+                                                                lam.IsTargetBeforeUniqueMate = true;
+
+                                                        if(RescueMate(lam, mr.Mate2.Bases, uniqueBegin, uniqueEnd, refIndex, firstPartialAlignment)) {
+                                                                if (ApplyPartialAlignmentFilters(firstPartialAlignment, pQualities, mr.Mate2.Bases.Length()))
+                                                                        foundFirst = true;
+                                                        }
+                                                }
+
+                                                // we can search for the second partial alignment if first one is found
+                                                if (foundFirst) {
+                                                        //TODO: find the sencond partial alignment
+                                                }
+
+                                                // report split alignment if one or two of the partial alignments are found
+                                                if (foundFirst || foundSecond) {
+                                                        //TODO: store split alginments
+
+                                                        // update the statistics for split alignment
+                                                        isMate2Aligned = true;
+                                                        mate2Status    = ALIGNMENTSTATUS_SPLITTED;
+                                                }
+                                        }
                                 }
                         }
 
@@ -286,95 +325,145 @@ void CAlignmentThread::AlignReadArchive(MosaikReadFormat::CReadReader* pIn, Mosa
                                 }
 
                                 Alignment al;
-                                if(RescueMate(lam, mr.Mate1.Bases, uniqueBegin, uniqueEnd, refIndex, al)) {
+                                const char* pQualities = mr.Mate1.Qualities.CData();
 
-                                        const char* pQualities = mr.Mate1.Qualities.CData();
-
+                                if (RescueMate(lam, mr.Mate1.Bases, uniqueBegin, uniqueEnd, refIndex, al)) {
                                         // add the alignment to the alignment set if it passes the filters
-                                        if(ApplyReadFilters(al, pQualities, mr.Mate1.Bases.Length())) {
+                                        if (ApplyReadFilters(al, pQualities, mr.Mate1.Bases.Length())) {
                                                 al.WasRescued = true;
                                                 if(mate1Alignments.Add(al)) {
                                                         mStatisticsCounters.AdditionalLocalMates++;
                                                         mate1Status    = ALIGNMENTSTATUS_GOOD;
                                                         isMate1Aligned = true;
                                                 }
-                                        }
 
-                                        // increment our candidates counter
-                                        mStatisticsCounters.AlignmentCandidates++;
+                                                // increment our candidates counter
+                                                mStatisticsCounters.AlignmentCandidates++;
+                                        }
+                                        else if (mFlags.UseSplitAlginment) { 
+
+                                                // if use split alignment, grab those reads did not pass normal filter as split alignment candidantes
+                                                // flags for partial alignment searching
+                                                bool foundFirst = false;
+                                                bool foundSecond = false;
+
+                                                // two tempory variables to hold the partial alignments
+                                                Alignment firstPartialAlignment = al;
+                                                Alignment secondePartialAlignement;
+
+                                                // apply the partial alignment filter
+                                                if (ApplyPartialAlignmentFilters(firstPartialAlignment, pQualities, mr.Mate1.Bases.Length())) 
+                                                        foundFirst = true;
+                                                else {
+                                                        // search the other side of unique anchor if we fail in the first time
+                                                        if (lam.IsTargetBeforeUniqueMate)
+                                                                lam.IsTargetBeforeUniqueMate = false; 
+                                                        else
+                                                                lam.IsTargetBeforeUniqueMate = true;
+
+                                                        if(RescueMate(lam, mr.Mate1.Bases, uniqueBegin, uniqueEnd, refIndex, firstPartialAlignment)) {
+                                                                if (ApplyPartialAlignmentFilters(firstPartialAlignment, pQualities, mr.Mate1.Bases.Length()))
+                                                                        foundFirst = true;
+                                                        }
+                                                }
+
+                                                // we can search for the second partial alignment if first one is found
+                                                if (foundFirst) {
+                                                        //TODO: find the sencond partial alignment
+                                                }
+
+                                                // report split alignment if one or two of the partial alignments are found
+                                                if (foundFirst || foundSecond) {
+                                                        //TODO: store split alginments
+
+                                                        // update the statistics for split alignment
+                                                        isMate1Aligned = true;
+                                                        mate1Status    = ALIGNMENTSTATUS_SPLITTED;
+                                                }
+                                        }
                                 }
                         }
-                }
 
-                // =================
-                // update statistics
-                // =================
+                        // =================
+                        // update statistics
+                        // =================
 
-                // update the alignment status statistics for mate1
-                if(numMate1Bases != 0) {
-                        switch(mate1Status) {
-                                case ALIGNMENTSTATUS_TOOSHORT:
-                                        mStatisticsCounters.ShortMates++;
-                                        break;
-                                case ALIGNMENTSTATUS_FAILEDHASH:
-                                        mStatisticsCounters.FailedHashMates++;
-                                        break;
-                                case ALIGNMENTSTATUS_FILTEREDOUT:
-                                        mStatisticsCounters.FilteredOutMates++;
-                                        break;
-                                case ALIGNMENTSTATUS_GOOD:
-                                        if(mate1Alignments.IsUnique()) mStatisticsCounters.UniqueMates++;
-                                        else mStatisticsCounters.NonUniqueMates++;
-                                        break;
+                        // TODO: is split alignment counted as unique alignment?
+
+                        // update the alignment status statistics for mate1
+                        if(numMate1Bases != 0) {
+                                switch(mate1Status) {
+                                        // SplitAlignment: add a case for split alignment
+                                        case ALIGNMENTSTATUS_SPLITTED:
+                                                ++mStatisticsCounters.SplitAlignments;
+                                                break;
+                                        case ALIGNMENTSTATUS_TOOSHORT:
+                                                mStatisticsCounters.ShortMates++;
+                                                break;
+                                        case ALIGNMENTSTATUS_FAILEDHASH:
+                                                mStatisticsCounters.FailedHashMates++;
+                                                break;
+                                        case ALIGNMENTSTATUS_FILTEREDOUT:
+                                                mStatisticsCounters.FilteredOutMates++;
+                                                break;
+                                        case ALIGNMENTSTATUS_GOOD:
+                                                if(mate1Alignments.IsUnique()) mStatisticsCounters.UniqueMates++;
+                                                else mStatisticsCounters.NonUniqueMates++;
+                                                break;
+                                }
                         }
-                }
 
-                // update the alignment status statistics for mate2
-                if(numMate2Bases != 0) {
-                        switch(mate2Status) {
-                                case ALIGNMENTSTATUS_TOOSHORT:
-                                        mStatisticsCounters.ShortMates++;
-                                        break;
-                                case ALIGNMENTSTATUS_FAILEDHASH:
-                                        mStatisticsCounters.FailedHashMates++;
-                                        break;
-                                case ALIGNMENTSTATUS_FILTEREDOUT:
-                                        mStatisticsCounters.FilteredOutMates++;
-                                        break;
-                                case ALIGNMENTSTATUS_GOOD:
-                                        if(mate2Alignments.IsUnique()) mStatisticsCounters.UniqueMates++;
-                                        else mStatisticsCounters.NonUniqueMates++;
-                                        break;
+                        // update the alignment status statistics for mate2
+                        if(numMate2Bases != 0) {
+                                switch(mate2Status) {
+                                        // SplitAlignment: add a case for split alignment
+                                        case ALIGNMENTSTATUS_SPLITTED:
+                                                mStatisticsCounters.SplitAlignments++;
+                                                break;
+                                        case ALIGNMENTSTATUS_TOOSHORT:
+                                                mStatisticsCounters.ShortMates++;
+                                                break;
+                                        case ALIGNMENTSTATUS_FAILEDHASH:
+                                                mStatisticsCounters.FailedHashMates++;
+                                                break;
+                                        case ALIGNMENTSTATUS_FILTEREDOUT:
+                                                mStatisticsCounters.FilteredOutMates++;
+                                                break;
+                                        case ALIGNMENTSTATUS_GOOD:
+                                                if(mate2Alignments.IsUnique()) mStatisticsCounters.UniqueMates++;
+                                                else mStatisticsCounters.NonUniqueMates++;
+                                                break;
+                                }
                         }
-                }
 
-                // update the paired-end read statistics
-                if(isPairedEnd) {
+                        // update the paired-end read statistics
+                        if(isPairedEnd) {
+                                if(isMate1Aligned || isMate2Aligned) {
+                                        if(isMate1Aligned && isMate2Aligned) {
+                                                const bool isM1Unique = mate1Alignments.IsUnique();
+                                                const bool isM2Unique = mate2Alignments.IsUnique();
+                                                if(isM1Unique && isM2Unique) mStatisticsCounters.BothUniqueReads++;
+                                                else if(!isM1Unique && !isM2Unique) mStatisticsCounters.BothNonUniqueReads++;
+                                                else mStatisticsCounters.OneNonUniqueReads++;
+                                        } else mStatisticsCounters.OrphanedReads++;
+                                } else mStatisticsCounters.UnalignedReads++;
+                        }
+
+                        // update the mate bases aligned
+                        if(isMate1Aligned) mStatisticsCounters.MateBasesAligned += numMate1Bases;
+                        if(isMate2Aligned) mStatisticsCounters.MateBasesAligned += numMate2Bases;
+
+                        // =================
+                        // save aligned read
+                        // =================
+
+                        // if any of the two mates aligned, save the read
                         if(isMate1Aligned || isMate2Aligned) {
-                                if(isMate1Aligned && isMate2Aligned) {
-                                        const bool isM1Unique = mate1Alignments.IsUnique();
-                                        const bool isM2Unique = mate2Alignments.IsUnique();
-                                        if(isM1Unique && isM2Unique) mStatisticsCounters.BothUniqueReads++;
-                                        else if(!isM1Unique && !isM2Unique) mStatisticsCounters.BothNonUniqueReads++;
-                                        else mStatisticsCounters.OneNonUniqueReads++;
-                                } else mStatisticsCounters.OrphanedReads++;
-                        } else mStatisticsCounters.UnalignedReads++;
-                }
-
-                // update the mate bases aligned
-                if(isMate1Aligned) mStatisticsCounters.MateBasesAligned += numMate1Bases;
-                if(isMate2Aligned) mStatisticsCounters.MateBasesAligned += numMate2Bases;
-
-                // =================
-                // save aligned read
-                // =================
-
-                // if any of the two mates aligned, save the read
-                if(isMate1Aligned || isMate2Aligned) {
-                        mStatisticsCounters.AlignedReads++;
-                        pthread_mutex_lock(&mSaveReadMutex);
-                        pOut->SaveRead(mr, mate1Alignments, mate2Alignments);
-                        pthread_mutex_unlock(&mSaveReadMutex);
+                                mStatisticsCounters.AlignedReads++;
+                                pthread_mutex_lock(&mSaveReadMutex);
+                                pOut->SaveRead(mr, mate1Alignments, mate2Alignments);
+                                pthread_mutex_unlock(&mSaveReadMutex);
+                        }
                 }
         }
 }
@@ -735,57 +824,57 @@ bool CAlignmentThread::ApplyReadFilters(Alignment& al, const char* qualities, co
 // SplitAlignment: filter for partial alignments
 bool CAlignmentThread::ApplyPartialAlignmentFilters(Alignment& al, const char* qualities, const unsigned int queryLength)
 {
-    // assuming this is a good read
-    bool ret = true;
+        // assuming this is a good read
+        bool ret = true;
 
-    // if necessary copy the base quality into the alignment
-    if (qualities != NULL)
-    {
-        al.BaseQualities.Copy(qualities + al.QueryBegin, al.QueryEnd - al.QueryBegin + 1);
-        if(al.IsReverseStrand) 
-            al.BaseQualities.Reverse();
-    }
+        // if necessary copy the base quality into the alignment
+        if (qualities != NULL)
+        {
+                al.BaseQualities.Copy(qualities + al.QueryBegin, al.QueryEnd - al.QueryBegin + 1);
+                if(al.IsReverseStrand) 
+                        al.BaseQualities.Reverse();
+        }
 
-    // TODO: could make it a more flexible, not strictly the start and the end.
-    // only one split is allowed in a read
-    // the partial alignment should be located either at the start or the end of a read
-    if (al.QueryBegin != 0 && al.QueryEnd != queryLength - 1)
-        return false;
+        // TODO: could make it a more flexible, not strictly the start and the end.
+        // only one split is allowed in a read
+        // the partial alignment should be located either at the start or the end of a read
+        if (al.QueryBegin != 0 && al.QueryEnd != queryLength - 1)
+                return false;
 
-    unsigned short numNonAlignedBases = queryLength - al.QueryLength;
+        unsigned short numNonAlignedBases = queryLength - al.QueryLength;
 
-    // convert from colorspace to basespace
-    // unenable EnableColorspace flag for low-memory algorithm, deal with the SOLiD convertion when sorting the aligned archives
-    if( mFlags.EnableColorspace ) 
-    {
-        mCS.ConvertAlignmentToBasespace(al);		
-        numNonAlignedBases = (queryLength + 1) - al.QueryLength;
-    }
+        // convert from colorspace to basespace
+        // unenable EnableColorspace flag for low-memory algorithm, deal with the SOLiD convertion when sorting the aligned archives
+        if( mFlags.EnableColorspace ) 
+        {
+                mCS.ConvertAlignmentToBasespace(al);		
+                numNonAlignedBases = (queryLength + 1) - al.QueryLength;
+        }
 
-    // check to see if this alignment meets the maximum mismatch threshold
-    if (mPartialAlignmentFilters.UseMismatchFilter && (al.NumMismatches > mPartialAlignmentFilters.MaxNumMismatches)) ret = false;
+        // check to see if this alignment meets the maximum mismatch threshold
+        if (mPartialAlignmentFilters.UseMismatchFilter && (al.NumMismatches > mPartialAlignmentFilters.MaxNumMismatches)) ret = false;
 
-    // check to see if this alignment meets the maximum mismatch threshold
-    if (mPartialAlignmentFilters.UseMismatchPercentFilter) 
-    {
-        double percentMismatch = (double) al.NumMismatches / (double) al.QueryLength;
-        if(percentMismatch > mPartialAlignmentFilters.MaxMismatchPercent) 
-            ret = false;
-    }
+        // check to see if this alignment meets the maximum mismatch threshold
+        if (mPartialAlignmentFilters.UseMismatchPercentFilter) 
+        {
+                double percentMismatch = (double) al.NumMismatches / (double) al.QueryLength;
+                if(percentMismatch > mPartialAlignmentFilters.MaxMismatchPercent) 
+                        ret = false;
+        }
 
-    // check to see if this alignment meets the minimum percentage alignment threshold
-    if (mPartialAlignmentFilters.UseMinAlignmentPercentFilter) 
-    {
-        double percentageAligned = (double) al.QueryLength / (double) queryLength;
-        if(percentageAligned < mPartialAlignmentFilters.MinPercentAlignment) 
-            ret = false;
-    }
+        // check to see if this alignment meets the minimum percentage alignment threshold
+        if (mPartialAlignmentFilters.UseMinAlignmentPercentFilter) 
+        {
+                double percentageAligned = (double) al.QueryLength / (double) queryLength;
+                if(percentageAligned < mPartialAlignmentFilters.MinPercentAlignment) 
+                        ret = false;
+        }
 
-    // check to see if this alignment meets the minimum alignment threshold
-    if (mPartialAlignmentFilters.UseMinAlignmentFilter && (al.QueryLength < mPartialAlignmentFilters.MinAlignment)) 
-        ret = false;
+        // check to see if this alignment meets the minimum alignment threshold
+        if (mPartialAlignmentFilters.UseMinAlignmentFilter && (al.QueryLength < mPartialAlignmentFilters.MinAlignment)) 
+                ret = false;
 
-    return ret;
+        return ret;
 }
 
 // creates the hash for a supplied fragment
