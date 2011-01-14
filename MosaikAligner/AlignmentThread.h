@@ -25,6 +25,7 @@
 #include "ReferenceSequence.h"
 #include "SequenceUtilities.h"
 #include "SmithWatermanGotoh.h"
+#include "SplitAlignmentUtilities.h"
 
 using namespace std;
 
@@ -63,10 +64,9 @@ public:
 		string UnalignedReadReportFilename;
 		unsigned int AllocatedReadLength;
 		unsigned int Bandwidth;
-                // unsigned int LocalAlignmentSearchRadius; // do not need anymore because of the change of search region calculation
+                unsigned int LocalAlignmentSearchRadius; 
 		unsigned int MedianFragmentLength;
 		unsigned int NumCachedHashes;
-                unsigned int NumFragmentLength; // SplitAlignment: add search region for split alignment
 		unsigned short AlignmentCandidateThreshold;
 		unsigned short HashPositionThreshold;
 		unsigned char HashSize;
@@ -133,28 +133,27 @@ public:
 	};
 
 	// stores the partial alginment filter settings
-        struct PartialAlignmentFilterSettings
+        struct SplitFilterSettings
         {
 		bool UseMinAlignmentFilter;
 		bool UseMinAlignmentPercentFilter;
 		bool UseMismatchFilter;
 		bool UseMismatchPercentFilter;
 
-		double MinPercentAlignment;
+		double MinAlignmentPercent;
 		double MaxMismatchPercent;
 		unsigned int MinAlignment;
 		unsigned int MaxNumMismatches;
 
-                // TODO: initialize the variables with default values
-                PartialAlignmentFilterSettings()
-			: UseMinAlignmentFilter()
-			, UseMinAlignmentPercentFilter()
-			, UseMismatchFilter()
-			, UseMismatchPercentFilter()
-			, MinPercentAlignment()
-			, MaxMismatchPercent()
-			, MinAlignment()
-			, MaxNumMismatches()
+                SplitFilterSettings()
+			: UseMinAlignmentFilter(CSplitAlignmentUtilities::UseMinAlignmentFilter)
+			, UseMinAlignmentPercentFilter(CSplitAlignmentUtilities::UseMinAlignmentPercentFilter)
+			, UseMismatchFilter(CSplitAlignmentUtilities::UseMismatchFilter)
+			, UseMismatchPercentFilter(CSplitAlignmentUtilities::UseMismatchPercentFilter)
+			, MinAlignmentPercent(CSplitAlignmentUtilities::MinAlignmentPercent)
+			, MaxMismatchPercent(CSplitAlignmentUtilities::MaxMismatchPercent)
+			, MinAlignment(CSplitAlignmentUtilities::MinAlignment)
+			, MaxNumMismatches(CSplitAlignmentUtilities::MaxNumMismatches)
 		{}
         };
 
@@ -195,7 +194,7 @@ public:
 		{}
 	};
 	// constructor
-	CAlignmentThread(AlignerAlgorithmType& algorithmType, FilterSettings& filters, PartialAlignmentFilterSettings& partialAlignmentFilters, FlagData& flags, 
+	CAlignmentThread(AlignerAlgorithmType& algorithmType, FilterSettings& filters, SplitFilterSettings& splitFilters, FlagData& flags, 
 		AlignerModeType& algorithmMode, char* pReference, unsigned int referenceLen, CAbstractDnaHash* pDnaHash, 
 		AlignerSettings& settings, unsigned int* pRefBegin, unsigned int* pRefEnd, char** pBsRefSeqs);
 	// destructor
@@ -206,7 +205,7 @@ public:
 		AlignerModeType Mode;
 		AlignerSettings Settings;
 		FilterSettings Filters;
-                PartialAlignmentFilterSettings PartialAlignmentFilters;
+                SplitFilterSettings SplitFilters; // SplitAlignment
 		FlagData Flags;
 		StatisticsCounters* pCounters;
 		CAbstractDnaHash* pDnaHash;
@@ -287,7 +286,7 @@ private:
 	FilterSettings mFilters;
 
         // stores the partial alignment filter
-        PartialAlignmentFilterSettings mPartialAlignmentFilters;
+        SplitFilterSettings mSplitFilters;
 
 	// stores our boolean flags
 	FlagData mFlags;

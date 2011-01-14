@@ -64,6 +64,8 @@ public:
 	void EnableJumpDB(const string& filenameStub, const unsigned int cacheSizeMB, const bool keepKeysInMemory, const bool keepPositionsInMemory);
 	// enables the local alignment search
 	void EnableLocalAlignmentSearch(const unsigned int radius);
+        // SplitAlignment: enbales the split alignment
+        void EnableSplitAlignment(void);
 	// enables paired-end read output
 	void EnablePairedEndOutput(void);
 	// enables reporting of unaligned reads
@@ -81,6 +83,8 @@ private:
 	CAlignmentThread::AlignerSettings mSettings;
 	// stores the filter configuration
 	CAlignmentThread::FilterSettings mFilters;
+        // SplitAlignment: store the filter configuration for partial alignment
+        CAlignmentThread::SplitFilterSettings mSplitFilters;
 	// stores our boolean flags
 	CAlignmentThread::FlagData mFlags;
 	// stores the statistical counters

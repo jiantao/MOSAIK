@@ -609,6 +609,7 @@ void CMosaikAligner::AlignReadArchive(MosaikReadFormat::CReadReader& in, MosaikR
 	td.Algorithm           = mAlgorithm;
 	td.ReferenceLen        = mReferenceLength;
 	td.Filters             = mFilters;
+        td.SplitFilters        = mSplitFilters;
 	td.Flags               = mFlags;
 	td.Mode                = mMode;
 	td.pReference          = mReference;
@@ -988,6 +989,11 @@ void CMosaikAligner::EnableJumpDB(const string& filenameStub, const unsigned int
 void CMosaikAligner::EnableLocalAlignmentSearch(const unsigned int radius) {
 	mFlags.UseLocalAlignmentSearch       = true;
 	mSettings.LocalAlignmentSearchRadius = radius;
+}
+
+// SplitAlignment: enables split alignment
+void CMosaikAligner::EnableSplitAlignment (void) {
+        mFlags.UseSplitAlginment = true;
 }
 
 // enables paired-end read output

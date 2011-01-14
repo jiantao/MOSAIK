@@ -24,12 +24,12 @@ const double CAlignmentThread::ONE_THIRD  = 1.0 / 3.0;
 const double CAlignmentThread::TWO_NINTHS = 2.0 / 9.0;
 
 // constructor
-        CAlignmentThread::CAlignmentThread(AlignerAlgorithmType& algorithmType, FilterSettings& filters, PartialAlignmentFilterSettings& partialAlignmentFilters, FlagData& flags, AlignerModeType& algorithmMode, char* pAnchor, unsigned int referenceLen, CAbstractDnaHash* pDnaHash, AlignerSettings& settings, unsigned int* pRefBegin, unsigned int* pRefEnd, char** pBsRefSeqs)
+        CAlignmentThread::CAlignmentThread(AlignerAlgorithmType& algorithmType, FilterSettings& filters, SplitFilterSettings& splitFilters, FlagData& flags, AlignerModeType& algorithmMode, char* pAnchor, unsigned int referenceLen, CAbstractDnaHash* pDnaHash, AlignerSettings& settings, unsigned int* pRefBegin, unsigned int* pRefEnd, char** pBsRefSeqs)
         : mAlgorithm(algorithmType)
         , mMode(algorithmMode)
         , mSettings(settings)
         , mFilters(filters)
-        , mPartialAlignmentFilters(partialAlignmentFilters)
+        , mSplitFilters(splitFilters)
         , mFlags(flags)
         , mReference(pAnchor)
         , mForwardRead(NULL)
@@ -62,7 +62,7 @@ void* CAlignmentThread::StartThread(void* arg) {
         ThreadData* pTD = (ThreadData*)arg;
 
         // align reads
-        CAlignmentThread at(pTD->Algorithm, pTD->Filters, pTD->PartialAlignmentFilters, pTD->Flags, pTD->Mode, pTD->pReference, pTD->ReferenceLen, pTD->pDnaHash, pTD->Settings, pTD->pRefBegin, pTD->pRefEnd, pTD->pBsRefSeqs);
+        CAlignmentThread at(pTD->Algorithm, pTD->Filters, pTD->SplitFilters, pTD->Flags, pTD->Mode, pTD->pReference, pTD->ReferenceLen, pTD->pDnaHash, pTD->Settings, pTD->pRefBegin, pTD->pRefEnd, pTD->pBsRefSeqs);
         at.AlignReadArchive(pTD->pIn, pTD->pOut, pTD->pUnalignedStream, pTD->pReadCounter, pTD->IsPairedEnd);
 
         vector<ReferenceSequence>::iterator refIter;
@@ -852,26 +852,26 @@ bool CAlignmentThread::ApplyPartialAlignmentFilters(Alignment& al, const char* q
         }
 
         // check to see if this alignment meets the maximum mismatch threshold
-        if (mPartialAlignmentFilters.UseMismatchFilter && (al.NumMismatches > mPartialAlignmentFilters.MaxNumMismatches)) ret = false;
+        if (mSplitFilters.UseMismatchFilter && (al.NumMismatches > mSplitFilters.MaxNumMismatches)) ret = false;
 
         // check to see if this alignment meets the maximum mismatch threshold
-        if (mPartialAlignmentFilters.UseMismatchPercentFilter) 
+        if (mSplitFilters.UseMismatchPercentFilter) 
         {
                 double percentMismatch = (double) al.NumMismatches / (double) al.QueryLength;
-                if(percentMismatch > mPartialAlignmentFilters.MaxMismatchPercent) 
+                if(percentMismatch > mSplitFilters.MaxMismatchPercent) 
                         ret = false;
         }
 
         // check to see if this alignment meets the minimum percentage alignment threshold
-        if (mPartialAlignmentFilters.UseMinAlignmentPercentFilter) 
+        if (mSplitFilters.UseMinAlignmentPercentFilter) 
         {
                 double percentageAligned = (double) al.QueryLength / (double) queryLength;
-                if(percentageAligned < mPartialAlignmentFilters.MinPercentAlignment) 
+                if(percentageAligned < mSplitFilters.MinAlignmentPercent) 
                         ret = false;
         }
 
         // check to see if this alignment meets the minimum alignment threshold
-        if (mPartialAlignmentFilters.UseMinAlignmentFilter && (al.QueryLength < mPartialAlignmentFilters.MinAlignment)) 
+        if (mSplitFilters.UseMinAlignmentFilter && (al.QueryLength < mSplitFilters.MinAlignment)) 
                 ret = false;
 
         return ret;
@@ -1006,7 +1006,7 @@ bool CAlignmentThread::RescueMate(const LocalAlignmentModel& lam, const CMosaikS
         unsigned int end   = 0;
 
         // the length of search region
-        const unsigned int searchLength = mSettings.MedianFragmentLength * mSettings.NumFragmentLength;
+        const unsigned int searchLength = mSettings.LocalAlignmentSearchRadius;
 
         // calcualte the begin and the end
         // search region is several number of median fragment length before or after anchor mate

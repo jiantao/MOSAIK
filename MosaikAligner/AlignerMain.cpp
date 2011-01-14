@@ -18,9 +18,9 @@
 #include "MosaikAligner.h"
 #include "Options.h"
 #include "PairwiseUtilities.h"
-#include "SplitAlignmentUtilities.h"
 #include "ReferenceSequenceStatus.h"
 #include "SequenceUtilities.h"
+#include "SplitAlignmentUtilities.h" // SplitAlignment
 
 using namespace std;
 
@@ -282,7 +282,7 @@ int main(int argc, char* argv[]) {
                 // SplitAlignment: must have the mismatch filter.
                 if (!settings.CheckSplitMismatchPercent && !settings.CheckSplitMismatchPercent) {
                         settings.CheckSplitMismatchPercent = true;
-                        settings.SplitMismatchPercent      = CSplitAlignmentUtilities::MismatchPercent;
+                        settings.SplitMismatchPercent      = CSplitAlignmentUtilities::MaxMismatchPercent;
                 }
 
                 // SplitAlignment: must have minimum alignment filter.
@@ -383,7 +383,7 @@ int main(int argc, char* argv[]) {
                 }
 
                 // assign the maximum mismatch percent for split alignment
-                CSplitAlignmentUtilities::MismatchPercent          = settings.SplitMismatchPercent;
+                CSplitAlignmentUtilities::MaxMismatchPercent          = settings.SplitMismatchPercent;
                 CSplitAlignmentUtilities::UseMismatchPercentFilter = true;
         }
 
@@ -511,8 +511,8 @@ int main(int argc, char* argv[]) {
 
         // SplitAlignment: set the maximum number of mismatches for split alignment
         if (settings.CheckSplitNumMismatches) {
-                CSplitAlignmentUtilities::NumMismatches     = settings.SplitNumMismatches;
-                CSplitAlignmentUtilities::UseMismatchFilter = true;
+                CSplitAlignmentUtilities::MaxNumMismatches     = settings.SplitNumMismatches;
+                CSplitAlignmentUtilities::UseMismatchFilter    = true;
         }
 
         // SplitAlignment: set the mininmum number of aligned mucleotides for split alignment
