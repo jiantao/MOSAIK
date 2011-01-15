@@ -67,6 +67,7 @@ public:
                 unsigned int LocalAlignmentSearchRadius; 
 		unsigned int MedianFragmentLength;
 		unsigned int NumCachedHashes;
+                unsigned int SecondPartialRadius; // SplitAlignment: search radius for the second partial alignment
 		unsigned short AlignmentCandidateThreshold;
 		unsigned short HashPositionThreshold;
 		unsigned char HashSize;

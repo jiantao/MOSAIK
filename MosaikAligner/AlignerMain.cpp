@@ -277,32 +277,6 @@ int main(int argc, char* argv[]) {
                 settings.CheckNumMismatches = true;
         }
 
-        // SplitAlignment: check the missing options for split alignment
-        if (settings.UseSplitAlignment) {
-                // SplitAlignment: must have the mismatch filter.
-                if (!settings.CheckSplitMismatchPercent && !settings.CheckSplitMismatchPercent) {
-                        settings.CheckSplitMismatchPercent = true;
-                        settings.SplitMismatchPercent      = CSplitAlignmentUtilities::MaxMismatchPercent;
-                }
-
-                // SplitAlignment: must have minimum alignment filter.
-                if (!settings.CheckSplitMinAlignment && !settings.CheckSplitMinAlignmentPercent) {
-                        settings.CheckSplitMinAlignmentPercent = true;
-                        settings.SplitMinimumAlignmentPercentage = CSplitAlignmentUtilities::MinimumAlignmentPercentage;
-                }
-
-                // SplitAlignment: must enable the local alignment search
-                if (!settings.HasLocalAlignmentSearchRadius) {
-                        settings.HasLocalAlignmentSearchRadius = true;
-                        settings.LocalAlignmentSearchRadius    = CSplitAlignmentUtilities::FirstPartialRadius;
-                }
-
-                if (settings.UseAlignedLengthForMismatches) {
-                        cout << "WARNING: -mmal option can not be used when split alignment is turned on." << endl;
-                        settings.UseAlignedLengthForMismatches = false;
-                }
-        }
-
         // figure out which algorithm to use
         CSequenceUtilities::LowercaseSequence(settings.Algorithm);
         CAlignmentThread::AlignerAlgorithmType algorithmType  = CAlignmentThread::AlignerAlgorithm_ALL;
@@ -373,30 +347,6 @@ int main(int argc, char* argv[]) {
         if(settings.CheckAlignmentQuality && (settings.AlignmentQualityThreshold > 99)) {
                 errorBuilder << ERROR_SPACER << "The alignment quality threshold should be between 0 and 99." << endl;
                 foundError = true;
-        }
-
-        // SplitAlignment: check the maximum mismatch percentage split alignment
-        if (settings.CheckSplitMismatchPercent) {
-                if (settings.SplitMismatchPercent < 0.0 || settings.SplitMismatchPercent > 1.0) {
-                        errorBuilder << ERROR_SPACER << "The maximum mismatch percentage for split alignment should be between 0.0 and 1.0." << endl;
-                        foundError = true;
-                }
-
-                // assign the maximum mismatch percent for split alignment
-                CSplitAlignmentUtilities::MaxMismatchPercent          = settings.SplitMismatchPercent;
-                CSplitAlignmentUtilities::UseMismatchPercentFilter = true;
-        }
-
-        // SplitAlignment: check the minimum alignment percentage for split alignment
-        if (settings.CheckSplitMinAlignmentPercent) {
-                if (settings.SplitMinimumAlignmentPercentage < 0.0 || settings.SplitMinimumAlignmentPercentage > 1.0) {
-                        errorBuilder << ERROR_SPACER << "The minimum alignment percentage for split alignment should be between 0.0 and 1.0." << endl;
-                        foundError = true;
-                }
-
-                // assign the minimum percentage alignment for splig alignment
-                CSplitAlignmentUtilities::MinAlignmentPercent          = settings.SplitMinimumAlignmentPercentage;
-                CSplitAlignmentUtilities::UseMinAlignmentPercentFilter = true;
         }
 
         // set the hash size
@@ -475,6 +425,133 @@ int main(int argc, char* argv[]) {
                 //}
         }
 
+        //====================================================================
+        // SplitAlignment: check the parameters for local and split alignment.
+        //====================================================================
+
+        // SplitAlignment: get the median fragment length
+        MosaikReadFormat::CReadReader in;
+        in.Open(settings.ReadsFilename);
+        MosaikReadFormat::ReadGroup readGroup = in.GetReadGroup();
+        in.Close();
+
+        // SplitAlignment: calculate the default value for the search radius of first partial alignment 
+        const unsigned int medianFragmentLength = readGroup.MedianFragmentLength;
+        CSplitAlignmentUtilities::FirstPartialRadius = 2 * medianFragmentLength;
+
+        // SplitAlignment: check the missing options for split alignment
+        if (settings.UseSplitAlignment) {
+                // SplitAlignment: must have the mismatch filter.
+                if (!settings.CheckSplitMismatchPercent && !settings.CheckSplitMismatchPercent) {
+                        settings.CheckSplitMismatchPercent = true;
+                        settings.SplitMismatchPercent      = CSplitAlignmentUtilities::MaxMismatchPercent;
+                }
+
+                // SplitAlignment: must have minimum alignment filter.
+                if (!settings.CheckSplitMinAlignment && !settings.CheckSplitMinAlignmentPercent) {
+                        settings.CheckSplitMinAlignmentPercent = true;
+                        settings.SplitMinimumAlignmentPercentage = CSplitAlignmentUtilities::MinAlignmentPercent;
+                }
+
+                // SplitAlignment: must enable the local alignment search
+                if (!settings.HasLocalAlignmentSearchRadius) {
+                        settings.HasLocalAlignmentSearchRadius = true;
+                        settings.LocalAlignmentSearchRadius    = CSplitAlignmentUtilities::FirstPartialRadius;
+                }
+
+                // SplitAlignment: must have the serach radius for the second partial alignment
+                if (!settings.HasSecondPartialRadius) {
+                        settings.HasSecondPartialRadius = true;
+                        settings.SecondPartialRadius    = CSplitAlignmentUtilities::SecondPartialRadius;
+                }
+
+                // SplitAlignment: must turn off the "-mmal" option
+                if (settings.UseAlignedLengthForMismatches) {
+                        cout << "WARNING: -mmal option can not be used when split alignment is turned on." << endl;
+                        settings.UseAlignedLengthForMismatches = false;
+                }
+        } 
+
+        // SplitAlignment: show warning messages dealing with the local alignment and first partial alignment search radius
+        if(settings.HasLocalAlignmentSearchRadius) {
+
+                // show the warning message if we have a SE read archive
+                if((readStatus & RS_SINGLE_END_READ) != 0) {
+                        // SplitAlignment: turn off the local and split alignment if this is single-end data
+                        cout << "WARNING: A single-end read archive was detected and the local or split alignment search was enabled. Local or split alignment search only works with paired-end reads.\n" << endl << endl;
+                        settings.UseSplitAlignment             = false;
+                        settings.HasLocalAlignmentSearchRadius = false;
+                } else { 
+
+                        // TODO: add a warning message if the radius is too large
+                        
+                        if(medianFragmentLength == 0) {
+                                // SplitAlignment: turn off the local and split alignment if median fragment length is unknown
+                                cout << "WARNING: Local or split alignment search only works when the median fragment length (-mfl parameter) has been specified in MosaikBuild.\n" << endl << endl;
+                                settings.UseSplitAlignment             = false;
+                                settings.HasLocalAlignmentSearchRadius = false;
+                        }
+                }
+        }
+
+        // SplitAlignment: if split alignment is turned off then do no check those parameters for split alignment
+        if (!settings.UseSplitAlignment) {
+                // SplitAlignment: if split alignment is not turned on do not check the paramenters for split alignment
+                settings.HasSecondPartialRadius    = false;
+                settings.CheckSplitMinAlignment    = false;
+                settings.CheckMinAlignmentPercent  = false;
+                settings.CheckSplitMismatchPercent = false;
+                settings.CheckSplitNumMismatches   = false;
+        }
+
+        // SplitAlignment: check the maximum mismatch percentage split alignment
+        if (settings.CheckSplitMismatchPercent) {
+                if (settings.SplitMismatchPercent < 0.0 || settings.SplitMismatchPercent > 1.0) {
+                        errorBuilder << ERROR_SPACER << "The maximum mismatch percentage for split alignment should be between 0.0 and 1.0." << endl;
+                        foundError = true;
+                }
+
+                // assign the maximum mismatch percent for split alignment
+                CSplitAlignmentUtilities::MaxMismatchPercent          = settings.SplitMismatchPercent;
+                CSplitAlignmentUtilities::UseMismatchPercentFilter = true;
+        }
+
+        // SplitAlignment: check the minimum alignment percentage for split alignment
+        if (settings.CheckSplitMinAlignmentPercent) {
+                if (settings.SplitMinimumAlignmentPercentage < 0.0 || settings.SplitMinimumAlignmentPercentage > 1.0) {
+                        errorBuilder << ERROR_SPACER << "The minimum alignment percentage for split alignment should be between 0.0 and 1.0." << endl;
+                        foundError = true;
+                }
+
+                // assign the minimum percentage alignment for splig alignment
+                CSplitAlignmentUtilities::MinAlignmentPercent          = settings.SplitMinimumAlignmentPercentage;
+                CSplitAlignmentUtilities::UseMinAlignmentPercentFilter = true;
+        }
+
+        // SplitAlignment: set the maximum number of mismatches for split alignment
+        if (settings.CheckSplitNumMismatches) {
+                CSplitAlignmentUtilities::MaxNumMismatches     = settings.SplitNumMismatches;
+                CSplitAlignmentUtilities::UseMismatchFilter    = true;
+        }
+
+        // SplitAlignment: set the mininmum number of aligned mucleotides for split alignment
+        if (settings.CheckSplitMinAlignment) {
+                CSplitAlignmentUtilities::MinAlignment          = settings.SplitMinimumAlignment;
+                CSplitAlignmentUtilities::UseMinAlignmentFilter = true;
+        }
+
+        // SplitAlignment: set the search radius for the first partial alignment
+        if (settings.HasLocalAlignmentSearchRadius) {
+                CSplitAlignmentUtilities::FirstPartialRadius    = settings.LocalAlignmentSearchRadius;
+                CSplitAlignmentUtilities::HasFirstPartialRadius = true; 
+        }
+
+        // SplitAlignment: set the search radius for the second partial alignment
+        if (settings.HasSecondPartialRadius) {
+                CSplitAlignmentUtilities::SecondPartialRadius    = settings.SecondPartialRadius;
+                CSplitAlignmentUtilities::HasSecondPartialRadius = true;
+        }
+
         // print the errors if any were found
         if(foundError) {
 
@@ -509,24 +586,6 @@ int main(int argc, char* argv[]) {
                 CPairwiseUtilities::UseMinAlignmentFilter = true;
         }
 
-        // SplitAlignment: set the maximum number of mismatches for split alignment
-        if (settings.CheckSplitNumMismatches) {
-                CSplitAlignmentUtilities::MaxNumMismatches     = settings.SplitNumMismatches;
-                CSplitAlignmentUtilities::UseMismatchFilter    = true;
-        }
-
-        // SplitAlignment: set the mininmum number of aligned mucleotides for split alignment
-        if (settings.CheckSplitMinAlignment) {
-                CSplitAlignmentUtilities::MinAlignment          = settings.SplitMinimumAlignment;
-                CSplitAlignmentUtilities::UseMinAlignmentFilter = true;
-        }
-
-        // SplitAlignment: set the search radius for the second partial alignment
-        if (settings.HasSecondPartialRadius) {
-                CSplitAlignmentUtilities::SecondPartialRadius    = settings.SecondPartialRadius;
-                CSplitAlignmentUtilities::HasSecondPartialRadius = true;
-        }
-
         // set the Smith-Waterman scores
         if(settings.HasMatchScore || settings.HasMismatchScore || settings.HasGapOpenPenalty || settings.HasGapExtendPenalty) {
                 if(settings.HasMatchScore)       CPairwiseUtilities::MatchScore       = settings.MatchScore;
@@ -546,40 +605,6 @@ int main(int argc, char* argv[]) {
                 cout << "WARNING: A paired-end read archive was detected and the aligner mode (-m parameter) was not set to 'all'. Paired-end resolution in MosaikSort will be limited to unique vs unique reads.\n" << endl << endl;
         }
 
-        // SplitAlignment show warning messages dealing with the local alignment and first partial alignment search radius
-        if(settings.HasLocalAlignmentSearchRadius) {
-
-                // show the warning message if we have a SE read archive
-                if((readStatus & RS_SINGLE_END_READ) != 0) {
-                        // SplitAlignment: turn off the local and split alignment if this is single-end data
-                        cout << "WARNING: A single-end read archive was detected and the local or split alignment search was enabled. Local or split alignment search only works with paired-end reads.\n" << endl << endl;
-                        settings.UseSplitAlignment             = false;
-                        settings.HasLocalAlignmentSearchRadius = false;
-                } else { 
-
-                        // TODO: add a warning message if the radius is too large
-                        
-                        // show the warning message if we have a PE read archive with no mean fragment length
-                        MosaikReadFormat::CReadReader in;
-                        in.Open(settings.ReadsFilename);
-                        MosaikReadFormat::ReadGroup readGroup = in.GetReadGroup();
-                        in.Close();
-
-                        if(readGroup.MedianFragmentLength == 0) {
-                                // SplitAlignment: turn off the local and split alignment if median fragment length is unknown
-                                cout << "WARNING: Local or split alignment search only works when the median fragment length (-mfl parameter) has been specified in MosaikBuild.\n" << endl << endl;
-                                settings.UseSplitAlignment             = false;
-                                settings.HasLocalAlignmentSearchRadius = false;
-                        }
-                }
-        }
-
-        // TODO: is this a redundant check? there is already a check in line 521
-        // show warning message about using the local alignment search with SE read archives
-        if(((readStatus & RS_SINGLE_END_READ) != 0) && settings.HasLocalAlignmentSearchRadius) {
-                cout << "WARNING: A single-end read archive was detected and the local alignment search was enabled. Local alignment search only works with paired-end reads.\n" << endl << endl;
-                settings.HasLocalAlignmentSearchRadius = false;
-        }
 
         // start benchmarking
         CBenchmark bench;
